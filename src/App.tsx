@@ -123,6 +123,7 @@ function Home() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
+  const { token } = useAppStore();
 
   useEffect(() => { apiFetch('/campaigns').then(setCampaigns).catch(() => {}); }, []);
   const featured = campaigns.filter(c => c.featured).slice(0, 3);
@@ -135,11 +136,15 @@ function Home() {
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass border border-amber-400/20 text-amber-400 text-xs font-semibold uppercase tracking-widest mb-8">Create · Share · Celebrate</span>
           <h1 className="font-display text-5xl sm:text-7xl font-bold leading-tight mb-6">Your Event.<br /><span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-amber-600">Your Face.</span> Instantly.</h1>
           <p className="text-lg text-ink-400 max-w-xl mx-auto mb-10">Generate personalized event DPs, Twibbons, and banners in seconds. High-quality exports ready for social media.</p>
-          <form onSubmit={(e) => { e.preventDefault(); navigate(`/explore?q=${query}`); }} className="relative max-w-lg mx-auto">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400" />
-            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search events..." className="w-full pl-12 pr-32 py-4 rounded-2xl glass border border-white/15 focus:border-amber-400 focus:outline-none text-ink-100" />
-            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 btn-gold px-5 py-2 rounded-xl text-sm">Explore</button>
-          </form>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+            <Link to={token ? "/dashboard/campaigns/new" : "/register"} className="btn-gold w-full sm:w-auto px-8 py-4 rounded-xl text-lg font-bold shadow-lg shadow-amber-400/20 flex items-center justify-center gap-2 hover:-translate-y-1 transition-transform">
+              <Plus size={20} /> Create a Campaign
+            </Link>
+            <Link to="/explore" className="w-full sm:w-auto px-8 py-4 rounded-xl glass border border-white/10 text-white hover:bg-white/5 transition-all text-lg font-bold flex items-center justify-center gap-2 hover:-translate-y-1">
+              <Search size={20} /> Explore Events
+            </Link>
+          </div>
         </div>
       </section>
       {featured.length > 0 && (
@@ -161,13 +166,19 @@ function Explore() {
   const [params] = useSearchParams();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const query = params.get('q') || '';
+  const { token } = useAppStore();
 
   useEffect(() => { apiFetch(`/campaigns?search=${encodeURIComponent(query)}`).then(setCampaigns).catch(console.error); }, [query]);
 
   return (
     <PageTransition>
       <div className="max-w-7xl mx-auto px-4 py-24">
-        <h1 className="font-display text-4xl font-bold mb-8">Explore Campaigns</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+          <h1 className="font-display text-4xl font-bold">Explore Campaigns</h1>
+          <Link to={token ? "/dashboard/campaigns/new" : "/register"} className="btn-gold px-6 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold shadow-lg shadow-amber-400/20">
+            <Plus size={18} /> Create Your Own
+          </Link>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {campaigns.map(c => <CampaignCard key={c.id} campaign={c} />)}
           {campaigns.length === 0 && <p className="text-ink-400 col-span-full">No campaigns found.</p>}
@@ -842,12 +853,15 @@ function Layout() {
             <Link to="/" className="hover:text-amber-400 transition-colors">Home</Link>
             <Link to="/explore" className="hover:text-amber-400 transition-colors">Explore</Link>
           </nav>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
             <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/10 text-ink-300">{darkMode ? <Sun size={18}/> : <Moon size={18}/>}</button>
             {token ? (
                <Link to="/dashboard" className="hidden sm:flex items-center gap-2 btn-gold px-4 py-2 rounded-xl text-sm"><LayoutDashboard size={16}/> Dashboard</Link>
             ) : (
-               <Link to="/login" className="hidden sm:block btn-gold px-4 py-2 rounded-xl text-sm">Sign In</Link>
+               <div className="hidden sm:flex items-center gap-2">
+                 <Link to="/login" className="text-ink-300 hover:text-white px-4 py-2 text-sm font-medium transition-colors">Sign In</Link>
+                 <Link to="/register" className="btn-gold px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-amber-400/20">Get Started</Link>
+               </div>
             )}
           </div>
         </div>
