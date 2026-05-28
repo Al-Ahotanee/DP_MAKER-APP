@@ -1,3 +1,33 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root { --bg: #f8f8f8; --fg: #0a0a0a; }
+  .dark { --bg: #0a0a0a; --fg: #f8f8f8; }
+  body { 
+    background-color: var(--bg); 
+    color: var(--fg); 
+    font-family: 'DM Sans', sans-serif; 
+    transition: background-color 0.3s; 
+    margin: 0; 
+  }
+}
+
+@layer components {
+  .glass { 
+    background: rgba(255,255,255,0.04); 
+    backdrop-filter: blur(12px); 
+    border: 1px solid rgba(255,255,255,0.08); 
+  }
+  .btn-gold { 
+    background: linear-gradient(135deg, #f59e0b, #d97706); 
+    color: #0a0a0a; 
+    font-weight: 700; 
+    transition: transform 0.2s, box-shadow 0.2s; 
+  }
+  .btn-gold:hover { 
+    transform: translateY(-1px); 
+    box-shadow: 0 8px 24px rgba(245,158,11,0.35); 
+  }
+}
