@@ -321,7 +321,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // Serve frontend in production (if running as a unified monolithic build)
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   app.use(express.static(path.join(process.cwd(), 'dist')));
   app.get('*', (req, res) => {
     // Only intercept non-api calls
@@ -331,6 +331,17 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`🚀 EventDP Platform Server running on port ${PORT}`);
-});
+// When deploying Express to Vercel, we MUST export the app instead of calling app.listen()
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 EventDP Platform Server running on port ${PORT}`);
+  });
+} else if (!process.env.VERCEL) {
+  // Standard production server (Render/Railway/VPS)
+  app.listen(PORT, () => {
+    console.log(`🚀 EventDP Platform Server running on port ${PORT}`);
+  });
+}
+
+// Required for Vercel Serverless Functions
+export default app;
