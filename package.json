@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"vite\"",
     "server:dev": "tsx watch server.ts",
-    "build": "npm run db:generate && tsc -p tsconfig.server.json && vite build",
+    "build": "npm run db:generate && vite build",
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
