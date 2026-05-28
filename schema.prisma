@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  password  String
+  name      String?
+  role      Role       @default(USER)
+  campaigns Campaign[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Campaign {
+  id               String    @id @default(uuid())
+  slug             String    @unique
+  title            String
+  shortTitle       String
+  description      String
+  tagline          String?
+  eventDate        String
+  venue            String
+  category         String    @default("General")
+  
+  // Theme configuration
+  themePrimary     String    @default("#000000")
+  themeSecondary   String    @default("#333333")
+  themeAccent      String    @default("#fbbf24")
+  themeText        String    @default("#ffffff")
+  themeBg          String    @default("#ffffff")
+  
+  logoText         String
+  attendeeLabel    String    @default("I'M ATTENDING")
+  
+  // States and Meta
+  tags             String[]
+  featured         Boolean   @default(false)
+  trending         Boolean   @default(false)
+  isPublished      Boolean   @default(false)
+  
+  // Relations
+  authorId         String
+  author           User      @relation(fields: [authorId], references: [id])
+  template         Template?
+  analytics        Analytics[]
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([slug])
+}
+
+model Template {
+  id             String   @id @default(uuid())
+  campaignId     String   @unique
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  frameUrl       String   // Cloudinary URL for the transparent PNG
+  exportWidth    Int      @default(1080)
+  exportHeight   Int      @default(1080)
+
+  // Photo Mask Configuration (The circular hole)
+  photoX         Float    @default(540)
+  photoY         Float    @default(490)
+  photoRadius    Float    @default(340)
+
+  // Text Typography Configuration
+  nameX          Float    @default(540)
+  nameY          Float    @default(900)
+  nameFont       String   @default("Playfair Display")
+  nameFontSize   Float    @default(42)
+  nameColor      String   @default("#FFD600")
+
+  labelX         Float    @default(540)
+  labelY         Float    @default(960)
+  labelFont      String   @default("DM Sans")
+  labelFontSize  Float    @default(22)
+  labelColor     String   @default("#FFFFFF")
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Analytics {
+  id           String   @id @default(uuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  views        Int      @default(0)
+  generatedDps Int      @default(0)
+  downloads    Int      @default(0)
+  date         DateTime @default(now()) @db.Date // Store metrics per day
+
+  @@unique([campaignId, date])
+}
