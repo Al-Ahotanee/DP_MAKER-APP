@@ -1,7 +1,8 @@
 import './index.css';
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Outlet, Navigate, useSearchParams } from 'react-router-dom';
+// FIX 1: Added useLocation to the imports below!
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Outlet, Navigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -12,9 +13,12 @@ import {
   User as UserIcon, Loader2, Share2, BarChart3, Eye, Users,
   ChevronRight, ChevronLeft, Image as ImageIcon, Settings2, Palette, 
   CheckCircle2, GripHorizontal, MessageCircle, Twitter, Facebook, 
-  Check, Link as LinkIcon, Sparkles, Clock, Tag, ArrowLeft
+  Check, Link as LinkIcon, Sparkles, ArrowLeft
 } from 'lucide-react';
 import type Konva from 'konva';
+
+// Utility for class merging
+const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
 // ==========================================
 // 1. CUSTOM HOOKS & TYPES
@@ -269,7 +273,7 @@ function Generator() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const stageRef = useRef<Konva.Stage>(null);
+  const stageRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { imageDataUrl, imageX, imageY, imageScale, imageRotation, attendeeName, setCanvasData, resetCanvas } = useAppStore();
   
@@ -299,11 +303,9 @@ function Generator() {
     setExporting(true);
     
     try {
-      // Record analytics
       apiFetch(`/analytics/generatedDps/${campaign.id}`, { method: 'POST' }).catch(() => {});
       apiFetch(`/analytics/downloads/${campaign.id}`, { method: 'POST' }).catch(() => {});
 
-      // High-Definition Export Logic
       const pixelRatio = campaign.template.exportWidth / stageRef.current.width();
       const dataUrl = stageRef.current.toDataURL({ pixelRatio, mimeType: 'image/png' });
       
@@ -328,7 +330,6 @@ function Generator() {
   const scaleRatio = CANVAS_SIZE / tpl.exportWidth;
   const campaignUrl = `${window.location.origin}/c/${campaign.slug}`;
 
-  // Sharing Handlers
   const shareOnWhatsApp = () => {
     const text = encodeURIComponent(`I just created my personalized DP for ${campaign.title}!\n\nJoin me and create yours here: ${campaignUrl}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
@@ -362,27 +363,22 @@ function Generator() {
             <div className="relative shadow-2xl rounded-2xl overflow-hidden glass border-4 border-white/10 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/O1gwx8EKGQZQAwgZcjTjSDAAxEQAMhUDAfEGB3YAAAAASUVORK5CYII=')]" style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}>
               <Stage width={CANVAS_SIZE} height={CANVAS_SIZE} ref={stageRef}>
                 <Layer>
-                  {/* Fallback solid color behind the frame hole if needed */}
                   <KonvaImage image={undefined} x={0} y={0} width={CANVAS_SIZE} height={CANVAS_SIZE} fill={campaign.themeBg} />
                   
-                  {/* The User Photo (Clipped to the hole defined by Admin) */}
                   <Group clipFunc={(ctx) => { ctx.arc(tpl.photoX * scaleRatio, tpl.photoY * scaleRatio, tpl.photoRadius * scaleRatio, 0, Math.PI * 2, false); }}>
                     {userImage ? (
                       <KonvaImage image={userImage} x={tpl.photoX * scaleRatio + imageX * scaleRatio} y={tpl.photoY * scaleRatio + imageY * scaleRatio} offsetX={(userImage.width * imageScale * scaleRatio) / 2} offsetY={(userImage.height * imageScale * scaleRatio) / 2} width={userImage.width * imageScale * scaleRatio} height={userImage.height * imageScale * scaleRatio} rotation={imageRotation} draggable onDragMove={(e) => setCanvasData({ imageX: (e.target.x() - tpl.photoX * scaleRatio) / scaleRatio, imageY: (e.target.y() - tpl.photoY * scaleRatio) / scaleRatio })} />
                     ) : <Circle x={tpl.photoX * scaleRatio} y={tpl.photoY * scaleRatio} radius={tpl.photoRadius * scaleRatio} fill={campaign.themePrimary + '80'} />}
                   </Group>
                   
-                  {/* The Transparent HD Frame Overlay */}
                   {frameImage && <KonvaImage image={frameImage} width={CANVAS_SIZE} height={CANVAS_SIZE} listening={false} />}
                   
-                  {/* The Attendee Name Overlay */}
                   {attendeeName && (
                     <Text text={attendeeName.toUpperCase()} x={(tpl.nameX - 500) * scaleRatio} y={tpl.nameY * scaleRatio} width={1000 * scaleRatio} align="center" fontSize={tpl.nameFontSize * scaleRatio} fontFamily={tpl.nameFont} fill={tpl.nameColor} fontStyle="bold" shadowColor="rgba(0,0,0,0.7)" shadowBlur={6} shadowOffsetY={2} listening={false} />
                   )}
                 </Layer>
               </Stage>
 
-              {/* Upload Prompt Overlay (Hidden when image is uploaded) */}
               {!imageDataUrl && (
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className="text-center p-4 rounded-2xl bg-black/60 backdrop-blur-sm border border-white/20">
@@ -399,7 +395,6 @@ function Generator() {
           <div className="space-y-6">
             <h2 className="font-display text-3xl font-bold text-white">{campaign.shortTitle}</h2>
             
-            {/* Editor Controls */}
             <div className="glass p-6 rounded-2xl space-y-5 border-white/10">
               <label className="block text-xs font-bold text-ink-300 uppercase tracking-wider">Step 1: Your Photo</label>
               <input type="file" accept="image/*" ref={fileRef} className="hidden" onChange={handleUpload} />
@@ -432,7 +427,6 @@ function Generator() {
               </div>
             </div>
 
-            {/* Success Toast */}
             <AnimatePresence>
               {success && (
                 <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-green-500/15 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-medium">
@@ -441,7 +435,6 @@ function Generator() {
               )}
             </AnimatePresence>
 
-            {/* Export & Sharing Loop */}
             <div className="glass p-6 rounded-2xl space-y-4 border-white/10 bg-gradient-to-b from-transparent to-amber-400/5">
                <button onClick={handleExport} disabled={!imageDataUrl || exporting} className="btn-gold w-full py-4 rounded-xl text-lg font-bold flex justify-center items-center gap-2 disabled:opacity-50 shadow-lg shadow-amber-400/20">
                  {exporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />} 
@@ -458,7 +451,6 @@ function Generator() {
                  </div>
                </div>
             </div>
-
           </div>
         </div>
       </div>
@@ -563,8 +555,24 @@ function DashboardLayout() {
   ];
 
   return (
-    <div className="min-h-screen flex bg-ink-950 text-white noise-overlay">
-      <aside className="w-64 glass border-r border-white/10 flex flex-col h-screen sticky top-0 hidden md:flex">
+    <div className="min-h-screen flex flex-col md:flex-row bg-ink-950 text-white noise-overlay">
+      {/* Mobile Top Navigation */}
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-white/10 glass sticky top-0 z-50">
+        <Link to="/" className="font-display text-xl font-bold text-white">Frame<span className="text-amber-400">It</span></Link>
+        <button onClick={logout} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg"><LogOut size={20}/></button>
+      </div>
+
+      {/* Mobile Scrollable Menu */}
+      <div className="md:hidden flex overflow-x-auto p-4 gap-2 border-b border-white/10 bg-ink-950">
+        {navItems.map((item) => (
+          <Link key={item.path} to={item.path} className={cn('whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all', location.pathname === item.path ? 'bg-amber-400/10 text-amber-400' : 'text-ink-400 bg-white/5')}>
+            {item.icon} {item.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Desktop Sidebar Navigation */}
+      <aside className="w-64 glass border-r border-white/10 flex-col h-screen sticky top-0 hidden md:flex">
         <div className="p-6 border-b border-white/10"><Link to="/" className="flex items-center gap-2 font-display text-xl font-bold"><Layers className="text-amber-400"/> FrameIt</Link></div>
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => (
@@ -574,10 +582,11 @@ function DashboardLayout() {
           ))}
         </nav>
         <div className="p-4 border-t border-white/10">
-          <div className="px-4 py-2 mb-2"><p className="text-sm font-bold text-white">{user.name}</p><p className="text-xs text-ink-500 truncate">{user.email}</p></div>
+          <div className="px-4 py-2 mb-2"><p className="text-sm font-bold text-white truncate">{user?.name || 'Creator'}</p><p className="text-xs text-ink-500 truncate">{user?.email}</p></div>
           <button onClick={logout} className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-red-400 hover:bg-red-400/10"><LogOut size={18}/> Logout</button>
         </div>
       </aside>
+
       <main className="flex-1 overflow-auto"><Outlet /></main>
     </div>
   );
@@ -588,11 +597,13 @@ function DashboardOverview() {
   const [stats, setStats] = useState<any>(null);
   useEffect(() => { apiFetch('/me/stats').then(setStats).catch(console.error); }, []);
 
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Creator';
+
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="font-display text-3xl font-bold mb-8">Welcome back, {user?.name.split(' ')[0]}</h1>
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <h1 className="font-display text-3xl font-bold mb-8">Welcome back, {firstName}</h1>
       {stats ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           <div className="glass p-6 rounded-2xl"><div className="text-amber-400 mb-2"><Layers/></div><div className="text-ink-400 mb-1">Total Campaigns</div><div className="text-3xl font-bold">{stats.totalCampaigns}</div></div>
           <div className="glass p-6 rounded-2xl"><div className="text-amber-400 mb-2"><Eye/></div><div className="text-ink-400 mb-1">Total Views</div><div className="text-3xl font-bold">{stats.totalViews}</div></div>
           <div className="glass p-6 rounded-2xl"><div className="text-amber-400 mb-2"><Users/></div><div className="text-ink-400 mb-1">DPs Generated</div><div className="text-3xl font-bold">{stats.totalGenerated}</div></div>
@@ -608,13 +619,13 @@ function DashboardCampaigns() {
   useEffect(() => { apiFetch('/me/campaigns').then(setCampaigns).catch(console.error); }, []);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="font-display text-3xl font-bold">My Campaigns</h1>
-        <Link to="/dashboard/campaigns/new" className="btn-gold px-4 py-2 rounded-lg flex items-center gap-2"><Plus size={16}/> New Campaign</Link>
+        <h1 className="font-display text-2xl md:text-3xl font-bold">My Campaigns</h1>
+        <Link to="/dashboard/campaigns/new" className="btn-gold px-4 py-2 rounded-lg flex items-center gap-2"><Plus size={16}/> New</Link>
       </div>
-      <div className="glass rounded-2xl overflow-hidden">
-        <table className="w-full text-left">
+      <div className="glass rounded-2xl overflow-x-auto">
+        <table className="w-full text-left whitespace-nowrap">
           <thead className="bg-white/5 text-ink-400 text-sm"><tr><th className="p-4">Title</th><th className="p-4">Date</th><th className="p-4">Generations</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr></thead>
           <tbody className="divide-y divide-white/5">
             {campaigns.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-ink-500">You haven't created any campaigns yet.</td></tr> : campaigns.map(c => (
@@ -656,7 +667,7 @@ function DashboardCampaignEditor() {
   const [template, setTemplate] = useState<Partial<Template>>({ exportWidth: 1080, exportHeight: 1080, photoX: 540, photoY: 450, photoRadius: 350, nameX: 540, nameY: 920, nameFont: 'Playfair Display', nameFontSize: 55, nameColor: '#FFD600', labelX: 540, labelY: 960, labelFont: 'DM Sans', labelFontSize: 22, labelColor: '#FFFFFF', frameUrl: '' });
   
   const [frameImage] = useImage(template.frameUrl || '', 'anonymous');
-  const stageRef = useRef<Konva.Stage>(null);
+  const stageRef = useRef<any>(null);
   const EDITOR_SIZE = 500;
   const ratio = EDITOR_SIZE / (template.exportWidth || 1080);
 
@@ -696,12 +707,11 @@ function DashboardCampaignEditor() {
 
   return (
     <div className="p-4 md:p-8 pb-32 max-w-6xl mx-auto">
-      {/* Header & Stepper */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold mb-2">{campaign.id ? 'Edit Campaign' : 'Create Campaign'}</h1>
           <div className="flex items-center gap-2 text-sm font-medium">
-            {[ { num: 1, title: 'Details' }, { num: 2, title: 'Template Engine' }, { num: 3, title: 'Review' } ].map((s, idx) => (
+            {[ { num: 1, title: 'Details' }, { num: 2, title: 'Template' }, { num: 3, title: 'Review' } ].map((s, idx) => (
               <React.Fragment key={s.num}>
                 <div onClick={() => setStep(s.num)} className={`flex items-center gap-2 cursor-pointer transition-colors ${step === s.num ? 'text-amber-400' : step > s.num ? 'text-green-400' : 'text-ink-500'}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border ${step === s.num ? 'border-amber-400 bg-amber-400/10' : step > s.num ? 'border-green-400 bg-green-400/10' : 'border-ink-600'}`}>{step > s.num ? <CheckCircle2 size={12}/> : s.num}</div>
@@ -715,9 +725,9 @@ function DashboardCampaignEditor() {
         <div className="flex gap-3">
           {step > 1 && <button onClick={() => setStep(step - 1)} className="px-4 py-2 rounded-xl glass text-sm hover:text-white transition-all">Back</button>}
           {step < 3 ? (
-            <button onClick={() => setStep(step + 1)} className="btn-gold px-6 py-2 rounded-xl text-sm flex items-center gap-2">Next Step <ChevronRight size={16}/></button>
+            <button onClick={() => setStep(step + 1)} className="btn-gold px-6 py-2 rounded-xl text-sm flex items-center gap-2">Next <ChevronRight size={16}/></button>
           ) : (
-            <button onClick={handleSave} disabled={saving} className="btn-gold px-6 py-2 rounded-xl text-sm flex items-center gap-2">{saving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} Publish Campaign</button>
+            <button onClick={handleSave} disabled={saving} className="btn-gold px-6 py-2 rounded-xl text-sm flex items-center gap-2">{saving ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} Publish</button>
           )}
         </div>
       </div>
@@ -728,7 +738,7 @@ function DashboardCampaignEditor() {
             <div className="flex items-center gap-2 text-xl font-bold border-b border-white/10 pb-4"><Settings2 className="text-amber-400"/> General Information</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-1 md:col-span-2"><label className="text-xs font-semibold text-ink-400 uppercase">Event Title</label><input type="text" value={campaign.title} onChange={e => setCampaign({...campaign, title: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-')})} className="w-full bg-ink-900 mt-1 p-3 rounded-xl border border-white/10 focus:border-amber-400" placeholder="e.g. Government Secondary School Reunion" /></div>
-              <div><label className="text-xs font-semibold text-ink-400 uppercase">Public URL Slug</label><div className="flex mt-1"><span className="bg-ink-900 border border-r-0 border-white/10 text-ink-500 px-3 py-3 rounded-l-xl text-sm">frameit.app/c/</span><input type="text" value={campaign.slug} onChange={e => setCampaign({...campaign, slug: e.target.value})} className="w-full bg-ink-900 p-3 rounded-r-xl border border-white/10 focus:border-amber-400" /></div></div>
+              <div><label className="text-xs font-semibold text-ink-400 uppercase">Public URL Slug</label><div className="flex mt-1"><span className="bg-ink-900 border border-r-0 border-white/10 text-ink-500 px-3 py-3 rounded-l-xl text-sm hidden sm:block">frameit.app/c/</span><input type="text" value={campaign.slug} onChange={e => setCampaign({...campaign, slug: e.target.value})} className="w-full bg-ink-900 p-3 rounded-r-xl border border-white/10 focus:border-amber-400" /></div></div>
               <div><label className="text-xs font-semibold text-ink-400 uppercase">Short Name (For Mobile)</label><input type="text" value={campaign.shortTitle} onChange={e => setCampaign({...campaign, shortTitle: e.target.value})} className="w-full bg-ink-900 mt-1 p-3 rounded-xl border border-white/10 focus:border-amber-400" /></div>
               <div className="col-span-1 md:col-span-2"><label className="text-xs font-semibold text-ink-400 uppercase">Description</label><textarea rows={3} value={campaign.description} onChange={e => setCampaign({...campaign, description: e.target.value})} className="w-full bg-ink-900 mt-1 p-3 rounded-xl border border-white/10 focus:border-amber-400" placeholder="Tell attendees what this event is about..." /></div>
               <div><label className="text-xs font-semibold text-ink-400 uppercase">Date</label><input type="text" value={campaign.eventDate} onChange={e => setCampaign({...campaign, eventDate: e.target.value})} className="w-full bg-ink-900 mt-1 p-3 rounded-xl border border-white/10 focus:border-amber-400" placeholder="e.g. May 31st, 2026" /></div>
@@ -739,12 +749,10 @@ function DashboardCampaignEditor() {
 
         {step === 2 && (
           <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-8">
-            {/* Left: Template Selector */}
             <div className="space-y-6">
               <div className="glass p-6 rounded-2xl">
                 <h3 className="font-bold mb-4 flex items-center gap-2"><ImageIcon size={18} className="text-amber-400"/> Template Library</h3>
                 
-                {/* Upload Button */}
                 <label className="block w-full text-center border-2 border-dashed border-amber-400/40 bg-amber-400/5 hover:bg-amber-400/10 transition-colors rounded-xl p-4 cursor-pointer mb-6">
                   {uploading ? <Loader2 className="mx-auto animate-spin text-amber-400 mb-2"/> : <Upload className="mx-auto text-amber-400 mb-2" size={24}/>}
                   <span className="text-sm font-bold text-amber-400">{uploading ? 'Uploading HD...' : 'Upload Custom Frame'}</span>
@@ -775,9 +783,8 @@ function DashboardCampaignEditor() {
               </div>
             </div>
 
-            {/* Right: Visual Editor Engine */}
-            <div className="glass p-6 rounded-2xl flex flex-col items-center">
-              <div className="w-full flex justify-between items-center mb-4 border-b border-white/10 pb-4">
+            <div className="glass p-6 rounded-2xl flex flex-col items-center overflow-hidden">
+              <div className="w-full flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-white/10 pb-4 gap-4">
                 <div><h3 className="font-bold text-lg">Visual Template Engine</h3><p className="text-xs text-ink-400">Drag the target reticle (✛) and text to position them perfectly.</p></div>
                 <div className="flex items-center gap-4">
                    <div className="text-right"><p className="text-xs text-ink-400">Hole Radius</p><input type="range" min="150" max="450" value={template.photoRadius} onChange={e => setTemplate({...template, photoRadius: Number(e.target.value)})} className="w-24 accent-amber-400"/></div>
@@ -785,21 +792,18 @@ function DashboardCampaignEditor() {
                 </div>
               </div>
 
-              <div className="bg-ink-950 border border-ink-800 rounded-2xl p-4 overflow-hidden shadow-inner flex items-center justify-center bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/O1gwx8EKGQZQAwgZcjTjSDAAxEQAMhUDAfEGB3YAAAAASUVORK5CYII=')]">
-                <div style={{ width: EDITOR_SIZE, height: EDITOR_SIZE, backgroundColor: campaign.themeBg }} className="relative shadow-2xl">
+              <div className="bg-ink-950 border border-ink-800 rounded-2xl p-4 overflow-x-auto shadow-inner flex items-center justify-center bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/O1gwx8EKGQZQAwgZcjTjSDAAxEQAMhUDAfEGB3YAAAAASUVORK5CYII=')]">
+                <div style={{ width: EDITOR_SIZE, height: EDITOR_SIZE, backgroundColor: campaign.themeBg, minWidth: EDITOR_SIZE }} className="relative shadow-2xl shrink-0">
                   <Stage width={EDITOR_SIZE} height={EDITOR_SIZE} ref={stageRef}>
                     <Layer>
-                      {/* Transparent frame overlay */}
                       {frameImage ? <KonvaImage image={frameImage} width={EDITOR_SIZE} height={EDITOR_SIZE} opacity={0.65} listening={false} /> : <Rect width={EDITOR_SIZE} height={EDITOR_SIZE} fill="transparent" />}
                       
-                      {/* Interactive Photo Hole Reticle */}
                       <Group x={(template.photoX || 540) * ratio} y={(template.photoY || 450) * ratio} draggable onDragMove={(e) => setTemplate({ ...template, photoX: e.target.x() / ratio, photoY: e.target.y() / ratio })}>
                         <Circle x={0} y={0} radius={(template.photoRadius || 350) * ratio} fill="rgba(0, 0, 0, 0.4)" stroke="#FFD600" strokeWidth={2} dash={[5, 5]} />
                         <Circle x={0} y={0} radius={6} fill="#FFD600" />
                         <Text text="✛ DRAG PHOTO HOLE" x={-65} y={-10} fill="#FFD600" fontStyle="bold" fontSize={12} listening={false} />
                       </Group>
 
-                      {/* Interactive Text Box */}
                       <Group x={(template.nameX || 540) * ratio} y={(template.nameY || 920) * ratio} draggable onDragMove={(e) => setTemplate({ ...template, nameX: e.target.x() / ratio, nameY: e.target.y() / ratio })}>
                         <Rect x={-200} y={-20} width={400} height={40} stroke="#00E5FF" strokeWidth={1} dash={[4, 4]} opacity={0.5} />
                         <Text text="ATTENDEE NAME" x={-200} y={0} width={400} align="center" fontSize={(template.nameFontSize || 55) * ratio} fontFamily={template.nameFont} fill={template.nameColor} fontStyle="bold" shadowColor="black" shadowBlur={4} />
@@ -809,7 +813,6 @@ function DashboardCampaignEditor() {
                   </Stage>
                 </div>
               </div>
-              <p className="text-xs text-ink-500 mt-4"><GripHorizontal size={14} className="inline mr-1"/> High-Definition mapping active. Canvas bounds strictly correlate to 1080x1080px export.</p>
             </div>
           </motion.div>
         )}
@@ -820,8 +823,8 @@ function DashboardCampaignEditor() {
              <h2 className="font-display text-3xl font-bold">Ready to Publish?</h2>
              <p className="text-ink-400">Your campaign <strong className="text-white">{campaign.title}</strong> is fully configured and ready for the world.</p>
              
-             <div className="bg-ink-900 border border-white/10 rounded-xl p-4 text-left max-w-sm mx-auto my-6">
-                <div className="flex justify-between mb-2"><span className="text-ink-500 text-sm">Public URL</span><span className="text-amber-400 text-sm">/c/{campaign.slug}</span></div>
+             <div className="bg-ink-900 border border-white/10 rounded-xl p-4 text-left max-w-sm mx-auto my-6 overflow-hidden">
+                <div className="flex justify-between mb-2"><span className="text-ink-500 text-sm">Public URL</span><span className="text-amber-400 text-sm truncate max-w-[200px]">/c/{campaign.slug}</span></div>
                 <div className="flex justify-between mb-2"><span className="text-ink-500 text-sm">Theme</span><div className="flex gap-1"><div className="w-4 h-4 rounded-sm" style={{background: campaign.themePrimary}}/><div className="w-4 h-4 rounded-sm" style={{background: campaign.themeAccent}}/></div></div>
                 <div className="flex justify-between"><span className="text-ink-500 text-sm">Template</span><span className="text-white text-sm">{template.frameUrl ? 'HD Graphic Loaded' : 'Missing'}</span></div>
              </div>
