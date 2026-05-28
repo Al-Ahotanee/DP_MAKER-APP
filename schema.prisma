@@ -16,7 +16,7 @@ model User {
   id        String     @id @default(uuid())
   email     String     @unique
   password  String
-  name      String?
+  name      String
   role      Role       @default(USER)
   campaigns Campaign[]
   createdAt DateTime   @default(now())
@@ -34,12 +34,12 @@ model Campaign {
   venue            String
   category         String    @default("General")
   
-  // Theme configuration
-  themePrimary     String    @default("#000000")
-  themeSecondary   String    @default("#333333")
-  themeAccent      String    @default("#fbbf24")
-  themeText        String    @default("#ffffff")
-  themeBg          String    @default("#ffffff")
+  // Theme configuration (Enterprise Grade styling)
+  themePrimary     String    @default("#1B5E20")
+  themeSecondary   String    @default("#F9A825")
+  themeAccent      String    @default("#FFD600")
+  themeText        String    @default("#FFFFFF")
+  themeBg          String    @default("#0D2B0D")
   
   logoText         String
   attendeeLabel    String    @default("I'M ATTENDING")
@@ -50,9 +50,9 @@ model Campaign {
   trending         Boolean   @default(false)
   isPublished      Boolean   @default(false)
   
-  // Relations
+  // Multi-Tenant Relations
   authorId         String
-  author           User      @relation(fields: [authorId], references: [id])
+  author           User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   template         Template?
   analytics        Analytics[]
 
@@ -60,6 +60,7 @@ model Campaign {
   updatedAt        DateTime  @updatedAt
 
   @@index([slug])
+  @@index([authorId])
 }
 
 model Template {
@@ -67,16 +68,16 @@ model Template {
   campaignId     String   @unique
   campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   
-  frameUrl       String   // Cloudinary URL for the transparent PNG
+  frameUrl       String   // Cloudinary URL for the uploaded world-class transparent PNG
   exportWidth    Int      @default(1080)
   exportHeight   Int      @default(1080)
 
-  // Photo Mask Configuration (The circular hole)
+  // Photo Mask Configuration (The circular hole mapping)
   photoX         Float    @default(540)
   photoY         Float    @default(490)
   photoRadius    Float    @default(340)
 
-  // Text Typography Configuration
+  // Dynamic Text Typography Configuration
   nameX          Float    @default(540)
   nameY          Float    @default(900)
   nameFont       String   @default("Playfair Display")
@@ -101,7 +102,7 @@ model Analytics {
   views        Int      @default(0)
   generatedDps Int      @default(0)
   downloads    Int      @default(0)
-  date         DateTime @default(now()) @db.Date // Store metrics per day
+  date         DateTime @default(now()) @db.Date
 
   @@unique([campaignId, date])
 }
