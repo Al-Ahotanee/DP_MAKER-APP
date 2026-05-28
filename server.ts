@@ -25,10 +25,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Multer config (Memory storage for streaming to Cloudinary)
+// Multer config (Memory storage for streaming to Cloudinary - Increased to 10MB for HD frames)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, 
 });
 
 // --- MIDDLEWARES ---
@@ -39,7 +39,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 200, // Increased limit for public sharing
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use('/api/', apiLimiter);
@@ -63,14 +63,13 @@ const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) 
   });
 };
 
-// Admin Authorization Middleware
+// Admin Authorization Middleware (Only needed for global settings now)
 const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Admin privileges required' });
   }
   next();
 };
-
 
 // ==========================================
 // API ROUTES
@@ -91,8 +90,6 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Check if the user is trying to setup the initial admin account
     const role = (adminCode && adminCode === process.env.ADMIN_SETUP_CODE) ? 'ADMIN' : 'USER';
 
     const user = await prisma.user.create({
@@ -139,13 +136,13 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthRequest, res: Respons
 
 
 // --- UPLOADS (Cloudinary Integration) ---
-app.post('/api/upload', authenticateToken, requireAdmin, upload.single('file'), async (req: Request, res: Response) => {
+// Note: Removed requireAdmin so any authenticated creator can upload a frame
+app.post('/api/upload', authenticateToken, upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-    // Stream the buffer directly to Cloudinary
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: 'eventdp_frames', format: 'png' },
+      { folder: 'eventdp_frames', format: 'png', quality: 'auto:best' },
       (error, result) => {
         if (error) return res.status(500).json({ error: 'Cloudinary upload failed' });
         res.json({ url: result?.secure_url });
@@ -159,8 +156,51 @@ app.post('/api/upload', authenticateToken, requireAdmin, upload.single('file'), 
 });
 
 
-// --- CAMPAIGNS (Public & Admin) ---
+// --- CREATOR DASHBOARD ROUTES (SAAS ENDPOINTS) ---
+app.get('/api/me/stats', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    
+    // Get all campaigns owned by this user
+    const userCampaigns = await prisma.campaign.findMany({
+      where: { authorId: userId },
+      select: { id: true }
+    });
+    
+    const campaignIds = userCampaigns.map(c => c.id);
 
+    // Aggregate stats only for their campaigns
+    const stats = await prisma.analytics.aggregate({
+      where: { campaignId: { in: campaignIds } },
+      _sum: { views: true, generatedDps: true, downloads: true }
+    });
+    
+    res.json({
+      totalCampaigns: userCampaigns.length,
+      totalViews: stats._sum.views || 0,
+      totalGenerated: stats._sum.generatedDps || 0,
+      totalDownloads: stats._sum.downloads || 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load user stats' });
+  }
+});
+
+app.get('/api/me/campaigns', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const campaigns = await prisma.campaign.findMany({
+      where: { authorId: req.user!.id },
+      include: { _count: { select: { analytics: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(campaigns);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch your campaigns' });
+  }
+});
+
+
+// --- PUBLIC CAMPAIGNS ---
 // Get all published campaigns (Public)
 app.get('/api/campaigns', async (req: Request, res: Response) => {
   try {
@@ -184,7 +224,7 @@ app.get('/api/campaigns', async (req: Request, res: Response) => {
 });
 
 // Get a specific campaign by slug (Public)
-app.get('/api/campaigns/:slug', async (req: Request, res: Response) => {
+app.get('/api/campaigns/slug/:slug', async (req: Request, res: Response) => {
   try {
     const campaign = await prisma.campaign.findUnique({
       where: { slug: req.params.slug },
@@ -201,8 +241,11 @@ app.get('/api/campaigns/:slug', async (req: Request, res: Response) => {
   }
 });
 
-// Create new campaign (Admin)
-app.post('/api/campaigns', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+
+// --- CAMPAIGN MANAGEMENT (SAAS OWNERSHIP) ---
+
+// Create new campaign (Any Authenticated User)
+app.post('/api/campaigns', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { template, ...campaignData } = req.body;
     
@@ -222,9 +265,16 @@ app.post('/api/campaigns', authenticateToken, requireAdmin, async (req: AuthRequ
   }
 });
 
-// Update campaign (Admin)
-app.put('/api/campaigns/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+// Update campaign (Must be the author or a Global Admin)
+app.put('/api/campaigns/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    // Ownership Check
+    const existing = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Campaign not found' });
+    if (existing.authorId !== req.user!.id && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Unauthorized: You do not own this campaign' });
+    }
+
     const { template, ...campaignData } = req.body;
     
     const campaign = await prisma.campaign.update({
@@ -247,9 +297,16 @@ app.put('/api/campaigns/:id', authenticateToken, requireAdmin, async (req: Reque
   }
 });
 
-// Delete campaign (Admin)
-app.delete('/api/campaigns/:id', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+// Delete campaign (Must be the author or a Global Admin)
+app.delete('/api/campaigns/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    // Ownership Check
+    const existing = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Campaign not found' });
+    if (existing.authorId !== req.user!.id && req.user!.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Unauthorized: You do not own this campaign' });
+    }
+
     await prisma.campaign.delete({ where: { id: req.params.id } });
     res.json({ success: true, message: 'Campaign deleted' });
   } catch (error) {
@@ -291,7 +348,7 @@ app.post('/api/analytics/:metric/:campaignId', async (req: Request, res: Respons
   }
 });
 
-// Admin Stats Endpoint
+// Admin Global Stats Endpoint
 app.get('/api/analytics/stats', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const [totalCampaigns, totalUsers, globalStats] = await Promise.all([
